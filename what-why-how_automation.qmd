@@ -309,7 +309,7 @@ make_disease_plot <- function(infection) {
       "Number of Cases",
       limit = c(0, max_y)
     ) +
-    ggtitle()
+    ggtitle(title)
 }
 
 ## totally real diseases
