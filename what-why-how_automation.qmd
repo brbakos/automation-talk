@@ -1,0 +1,617 @@
+---
+title: "<span style='font-size: 60px;'>Byte-Size Brilliance:<br>Small Steps to<br></span>Big Automation"
+format: 
+  revealjs:
+    slide-level: 2
+    transition: 'slide'
+    # chalkboard: true
+    embed-resources: true
+echo: true
+---
+
+<style>
+h1, h2 { 
+  text-align: center; 
+  font-weight: 400;
+}
+
+.boxed {
+  border: 2px solid #000;
+  padding: 10px;
+  margin: 10px 0;
+</style>
+
+## Outline
+
+* Quick intro
+
+* Practical considerations for automating code
+
+* Using flexible parameters for automation
+
+
+# Introduction to Automation
+
+## What is Automation?
+
+- **Definition:** The process of making data analysis and reporting self-operating or self-regulating.
+
+::: notes
+If I'm on this slide for more than 10 seconds something has gone wrong.
+
+- it doesn't have to be just an R script
+  - e.g. could automate receiving facility outbreak updates and pull info from email and add to access
+:::
+
+## Why Automation?
+::: {.fragment}
+- **Streamlining**
+:::
+
+::: {.fragment}
+- **Better decision making**
+:::
+
+::: {.fragment}
+- **Scalability**
+:::
+
+::: {.fragment}
+- **Cost-Effectiveness**
+:::
+
+::: {.fragment}
+- **More fun in the future**
+  - Prediction, trend identification, advanced analyses
+:::
+  
+::: notes
+- Reduces repetitive manual tasks.
+- Increases accuracy and efficiency -- more consistentcy
+- Data will be available as needed for decisions
+- we are getting more and more data (e.g. MSP), and we need tools to handle that
+- Essential for us to build out a larger suite of tools and monitor more health issues.
+:::
+
+
+# Automation Tools
+
+## R
+
+- In early stages, much of the automation will be data cleaning
+
+```{r}
+#| eval: false
+library(dplyr)
+df |>
+  mutate(
+    across(
+      matches("address"),
+      ~ stringr::str_to_upper(.x)
+    )
+  )
+```
+
+::: notes
+Doesn't require us to know the column names and can adapt to changes in the data. 
+:::
+
+## R
+
+- As we build a suite of tools, there will be space for more analysis
+
+```{r}
+#| eval: false
+smooth_probability <- function(df, x, y){
+  
+   x <- enquo(x)
+   y <- enquo(y)
+  
+  p <- 
+    ggplot(df, aes(x = {{x}}, y = {{y}})) + 
+      geom_point(size=2, alpha=0.4) +
+      ## the confidence intervals are not correct for a binomial distribution
+      ## the smooth function is too convenient not to use and I'm not sure how 
+      ## to calculate the binomial CI with the smooth function so we just turn it off
+      stat_smooth(method="loess", size=1.5, se = FALSE) +
+      scale_y_continuous(paste0("Probability of ", rlang::as_label(y)),
+                         limits = c(0,1))
+      xlab(paste0(rlang::as_label(x))) +
+      theme_bw()
+  
+  p
+}
+```
+
+
+## Other tools
+
+::: {.fragment}
+- Python
+  - Best for machine learning
+:::
+
+::: {.fragment}
+- Tableau
+  - Quick visualization
+:::
+
+::: {.fragment}
+- SQL
+  - Great for extracting data
+:::
+
+::: {.fragment}
+* Batch files
+  * Automating tasks within windows
+:::
+
+::: notes
+R isn't the only tool
+SQL an be leveraged within other languages
+Batch files can be used to run multiple scripts from different languages or create folders
+  - I also use it to mount the P drive so old stata scripts can be run
+:::
+
+# Optimizing Automation: Strategies and Solutions
+
+## Effective Implementation
+
+::: {.fragment}
+- If not well thought out, automation can be problematic
+:::
+
+::: {.fragment}
+- But if we code defensively, we can protect against common issues
+:::
+
+::: {.fragment}
+- Think about what can go wrong and make a plan to cover it
+:::
+
+::: notes
+We've probably all seen it happen, data disappearing, columns changing, etc.
+:::
+
+## Data Quality
+
+::: {.fragment}
+- Incorporate data validation steps
+:::
+
+::: {.fragment}
+::: {.boxed}
+Examples:
+
+- Compare column names with expected
+- Check for anomalies (e.g. missing dates, new diseases)
+- Volume checks
+- Files missing or moved
+:::
+:::
+
+::: notes
+For example, working on a line list that's being actively edited
+Receiving data on a rolling period
+
+Can anyone think of some validation steps we might take?
+draw on the board with a mouse for some cheap laughs if using revealchalkboard
+:::
+
+## Data Quality
+
+<br>
+
+```{r}
+#| eval: false
+intake_colnames <- colnames(intake_data)
+intake_colnames_old <- read.table("logs/intake-line-list-names.txt")
+intake_colnames_old <- intake_colnames_old$V1
+colnames_identical <- identical(intake_colnames, intake_colnames_old)
+
+if (!colnames_identical) {
+  send_slack_msg(
+    paste(
+      "Variables in the intake line list have been changed.",
+      "Review the intake line list to make sure new patients are captured.",
+      "Intake\\Line List.xlsx"
+    )
+  )
+  ## depending on how critical integrity is, stop may be useful
+  # stop()
+}
+```
+
+## Data Quality
+
+* This could be an alerting system or a manual review process
+
+::: {.fragment}
+```{r}
+#| eval: false
+tryCatch({
+  source(
+    file.path(
+      "scripts",
+      "02.get-geo-and-immunization-data.R"
+    ), 
+    echo = TRUE, 
+    max.deparse.length = 1E4
+  )},
+  error = 
+    function(cond) {
+      send_slack_msg(cond)
+      send_slack_msg("Failed in 02.get-geo-and-immunization-data.R, stopping run")
+      print(cond)
+      stop()
+    }
+)
+```
+:::
+  
+## Flexibility in Automation
+
+* Design adaptable frameworks
+  * Build in parameter variations
+  * e.g. include sections of a report based on disease
+
+::: {.fragment}
+
+```{r}
+#| eval: false
+infections_in_data <- stringr::str_to_lower(all_infection_data$disease)
+infections_in_data <- unique(infections_in_data)
+
+if ("itis" %in% infections_in_data) {
+  include_itis <- TRUE
+}
+
+\```{r, child = if(include_itis) '04_itis-indicators.Rmd'}
+\```
+```
+
+:::
+
+::: notes
+This can be done with a YAML header or using functions
+
+I can't remember how to get Rmarkdown code neatly in the presentation. Backslashes wouldn't be there in a normal example
+:::
+
+## Flexibility in Automation
+
+* F U N C T I O N S
+
+::: {.fragment}
+```{r}
+#| eval: false
+
+make_disease_plot <- function(infection) {
+  
+  plot_data <- 
+    df |>
+      filter(stringr::str_to_lower(disease) %in% infection)
+  
+  max_y <- max(plot_data$incidence, na.rm = TRUE)
+  max_y <- ceiling(max_y / 5) * 5
+  
+  disease_for_title <- stringr::str_to_title(infection)
+  title <- 
+    paste0(
+      "Number of cases of",
+      infection,
+      "in 2024"
+    )
+  
+  ggplot(data = plot_data, aes(x = epi_week, y = incidence)) +
+    geom_bar() +
+    scale_y_continuous(
+      "Number of Cases",
+      limit = c(0, max_y)
+    ) +
+    ggtitle()
+}
+
+## totally real diseases
+diseases_for_report <- 
+  c("itis", "luminoxia", "fractalgia", "echoflux", "spiralgroth")
+
+disease_plots <- lapply(diseases_for_report, make_disease_plot)
+```
+:::
+
+::: notes
+The sooner we learn to use functions, the easier it will be to build out a suite of helpful tools
+
+we'll cover how to use dates flexibly later in the presentation 
+:::
+  
+  
+## Simplifying Complexity and Maintanence
+
+* Modular programming  
+  * Break big tasks down into smaller ones  
+  * Separate scripts
+  
+::: {.fragment}
+```markdown
+00.batch-run.R
+01.get-data.R
+02.clean-data.R
+03.analyze-data.R
+04.pretty-plots.R
+```
+:::
+  
+::: notes
+- Makes error checking easier
+- Easier maintenance
+- e.g. break scripts up into smaller pieces
+- Modular code will help you to build reusable pieces of code that can speed up future projects
+  - This is actually how the process for `phsuCD` and extracting PARIS data was started
+:::
+
+## Simplifying Complexity and Maintanence
+
+* Version control
+
+```{r}
+#| echo: false
+knitr::include_graphics("images/diff-example.PNG")
+```
+
+
+## Proactive Error Management
+
+::: {.fragment}
+* Log runs
+:::
+
+::: {.fragment}
+* Think about what's likely to error
+:::
+
+::: {.fragment}
+* Add alerts for failures
+  * e.g. e-mails or slack messages
+:::
+
+::: notes
+This is what the slack messaging was built for (currently poorly housed in the `phsuCD` package) 
+:::
+
+
+## Balanced Automation
+
+* Avoid over-dependence
+
+::: {.fragment}
+* Some steps will always need some oversight
+  * e.g. free text fields should be reviewed
+:::
+
+::: notes
+What this is will depend on the system
+Unfortunately, computers don't let us stop thinking.
+Plan around fragile sections and how to handle it.
+:::
+
+
+# Automation in Action
+
+## Dates
+
+::: {.fragment}
+There's an outbreak of the itis!
+:::
+
+```{r}
+infection_data <- 
+  data.frame(
+    diagnosis_date = 
+      as.Date(
+        c("2024-03-04", "2024-03-04", "2024-03-08")
+      ),
+    case_id = c("A", "B", "C")
+  )
+
+infection_data
+```
+
+::: {.fragment}
+```{r}
+today <- as.Date("2024-03-15")
+today
+```
+:::
+
+::: notes
+Probably the most common variable we'll have to make dynamic and flexible
+:::
+
+## Dates
+
+How can we get cases for last week?
+
+::: {.fragment}
+
+```{r}
+cases_last_week <- 
+  infection_data |>
+  dplyr::filter(diagnosis_date >= as.Date("2024-03-03")) |>
+  dplyr::filter(diagnosis_date <= as.Date("2024-03-09"))
+
+cases_last_week
+```
+
+:::
+
+::: notes
+If today is March 15th, how can we get cases from last week?
+:::
+
+## Dates
+
+A week passes by and now we've had new cases of itis.
+
+```{r}
+today <- as.Date("2024-03-22")
+
+infection_data <-
+  dplyr::bind_rows(
+    infection_data,
+    data.frame(
+      diagnosis_date = as.Date("2024-03-13"),
+      case_id = "D"
+    )
+  )
+
+infection_data
+```
+
+::: notes
+And if there's new cases, what do we do?
+:::
+
+## Dates
+
+With a hard coded method, we would get the wrong data unless we manually make changes
+
+::: {.fragment}
+
+```{r}
+today
+```
+
+:::
+
+::: {.fragment}
+
+```{r}
+cases_last_week <- 
+  infection_data |>
+  dplyr::filter(diagnosis_date >= as.Date("2024-03-03")) |>
+  dplyr::filter(diagnosis_date <= as.Date("2024-03-09"))
+
+## wrong data!
+cases_last_week
+```
+
+:::
+
+
+## Dates
+
+So we can make it flexible based on the todays date
+
+::: {.fragment}
+
+```{r}
+last_week_end <- today - (lubridate::wday(today) %% 7)
+last_week_start <- last_week_end - 6
+
+cases_last_week <- 
+  infection_data |>
+  dplyr::filter(diagnosis_date >= last_week_start) |>
+  dplyr::filter(diagnosis_date <= last_week_end)
+
+cases_last_week
+
+```
+
+:::
+
+
+## Dates
+
+* We can also use these strategies for folders with varying dates
+
+::: {.fragment}
+
+```{r}
+this_year <- lubridate::year(today)
+
+my_fake_path <- 
+  file.path(
+    "some",
+    "folder",
+    "path",
+    this_year,
+    "data"
+  )
+
+my_fake_path
+```
+
+:::
+
+::: notes
+Can anyone spot a problem with this?
+:::
+
+## Dates
+
+* This could be problematic at the beginning of the year
+
+::: {.fragment}
+
+```{r}
+today <- as.Date("2024-01-05")
+this_year <- lubridate::year(today)
+
+first_sunday <- function(.date) {
+
+    first_day_of_month <- lubridate::floor_date(.date, unit = "months")
+    week_dates <- seq(from = first_day_of_month, by = "days", length.out = 7)
+    sunday <- week_dates[weekdays(week_dates) == "Sunday"]
+    
+    sunday[1]
+}
+
+if (lubridate::month(today) == 1 & today < first_sunday(today)) {
+  this_year <- this_year - 1
+}
+
+my_fake_path <- 
+  file.path(
+    "some",
+    "folder",
+    "path",
+    this_year,
+    "data"
+  )
+
+my_fake_path
+```
+
+:::
+
+::: notes
+How to approach this will depend on the situation. Data may be dropped daily in the morning and wouldn't be a problem.
+
+Maybe it relies on another process to create the folder
+:::
+
+# Closing Thoughts
+
+## Automation
+
+* Everything takes practice
+
+::: {.fragment}
+* Even if something isn't going to be automated, use some of these concepts
+  * modular
+  * flexible objects
+:::
+
+::: {.fragment}
+* Talk it out
+:::
+
+::: notes
+The master has failed more times than the student has tried
+:::
+
+# The End
+
+
